@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { exportData, importData, importLegacyLogs, clearAll, getActivePlanVersion, getLogs, applyPlanVersion } from '../store/storage';
+import { exportData, importData, importLegacyLogs, clearAll, getLogs, applyPlanVersion } from '../store/storage';
 import { validateExportJSON } from '../utils/validators';
 import { DEFAULT_PLAN, getSeedLogs } from '../data/defaultPlan';
 import { savePlanTemplate } from '../store/storage';
+import { tokens } from '../theme/tokens';
+import { useTheme } from '../theme/ThemeContext';
 import ErrorList from '../components/ErrorList';
+
+const t = tokens.color;
 
 export default function SettingsScreen() {
   const [importText, setImportText] = useState('');
@@ -11,118 +15,106 @@ export default function SettingsScreen() {
   const [errors, setErrors] = useState([]);
   const [summary, setSummary] = useState(null);
   const [status, setStatus] = useState('');
+  const { focusMode, setFocusMode } = useTheme();
+
+  const flash = (msg) => { setStatus(msg); setTimeout(() => setStatus(''), 3000); };
 
   const handleExport = () => {
     const data = exportData();
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `training-export-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setStatus('Exported!');
-    setTimeout(() => setStatus(''), 2000);
+    flash('Exported!');
   };
 
   const handleCopyExport = () => {
-    const data = exportData();
-    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-    setStatus('Copied to clipboard!');
-    setTimeout(() => setStatus(''), 2000);
+    navigator.clipboard.writeText(JSON.stringify(exportData(), null, 2));
+    flash('Copied to clipboard!');
   };
 
   const handleImport = () => {
-    setErrors([]);
-    setSummary(null);
-
+    setErrors([]); setSummary(null);
     let parsed;
-    try {
-      parsed = JSON.parse(importText);
-    } catch (e) {
-      setErrors([{ path: '', message: `Invalid JSON: ${e.message}` }]);
-      return;
-    }
-
+    try { parsed = JSON.parse(importText); }
+    catch (e) { setErrors([{ path: '', message: `Invalid JSON: ${e.message}` }]); return; }
     const errs = validateExportJSON(parsed);
-    if (errs.length > 0) {
-      setErrors(errs);
-      return;
-    }
-
+    if (errs.length > 0) { setErrors(errs); return; }
     const result = importData(parsed);
     setSummary(result);
     setImportText('');
-    setStatus('Import complete!');
-    setTimeout(() => setStatus(''), 3000);
+    flash('Import complete!');
   };
 
   const handleLegacyImport = () => {
-    setErrors([]);
-    setSummary(null);
-
+    setErrors([]); setSummary(null);
     let parsed;
-    try {
-      parsed = JSON.parse(legacyText);
-    } catch (e) {
-      setErrors([{ path: '', message: `Invalid JSON: ${e.message}` }]);
-      return;
-    }
-
+    try { parsed = JSON.parse(legacyText); }
+    catch (e) { setErrors([{ path: '', message: `Invalid JSON: ${e.message}` }]); return; }
     const result = importLegacyLogs(parsed);
-    if (result.errors.length > 0) {
-      setErrors(result.errors);
-    }
+    if (result.errors.length > 0) setErrors(result.errors);
     setSummary({ addedLogs: result.imported, addedVersions: 0, conflicts: [] });
     setLegacyText('');
-    setStatus(`Imported ${result.imported} legacy logs.`);
-    setTimeout(() => setStatus(''), 3000);
+    flash(`Imported ${result.imported} legacy logs.`);
   };
 
   const handleSeedData = () => {
-    if (!window.confirm('This will load the default plan and seed example logs. Continue?')) return;
-
+    if (!window.confirm('Load default plan and seed example logs?')) return;
     savePlanTemplate(DEFAULT_PLAN);
     const pv = applyPlanVersion(DEFAULT_PLAN);
     const seedLogs = getSeedLogs(pv);
-
-    const existingLogs = getLogs();
-    const allLogs = [...existingLogs];
-
+    const existing = getLogs();
     for (const log of seedLogs) {
-      if (!allLogs.find(l => l.log_id === log.log_id)) {
-        allLogs.push(log);
-      }
+      if (!existing.find(l => l.log_id === log.log_id)) existing.push(log);
     }
-    localStorage.setItem('ct_logs', JSON.stringify(allLogs));
-
-    setStatus('Default plan applied and seed logs added!');
-    setTimeout(() => setStatus(''), 3000);
+    localStorage.setItem('ct_logs', JSON.stringify(existing));
+    flash('Default plan applied and seed logs added!');
   };
 
   const handleClearAll = () => {
     if (!window.confirm('DELETE ALL DATA? This cannot be undone!')) return;
-    if (!window.confirm('Are you really sure? All plans, versions, and logs will be deleted.')) return;
+    if (!window.confirm('Are you really sure?')) return;
     clearAll();
-    setStatus('All data cleared.');
-    setTimeout(() => setStatus(''), 3000);
+    flash('All data cleared.');
   };
 
   return (
     <div style={{ padding: 16, paddingBottom: 100 }}>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Settings</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 16, color: t.text_primary }}>Settings</div>
 
       {status && (
         <div style={{
-          background: '#22c55e', color: '#fff', padding: '8px 16px',
-          borderRadius: 8, marginBottom: 12, fontSize: 14, fontWeight: 600, textAlign: 'center',
+          background: t.primary_soft, color: t.primary, padding: '10px 16px',
+          borderRadius: 10, marginBottom: 12, fontSize: 14, fontWeight: 700, textAlign: 'center',
+          border: `1px solid ${t.primary}30`,
         }}>{status}</div>
       )}
 
-      {/* Export section */}
+      {/* Focus Mode */}
+      <Section title="Focus Mode">
+        <div style={{ fontSize: 13, color: t.text_secondary, marginBottom: 10 }}>
+          Strip away visual noise. Only essential workout data remains visible.
+        </div>
+        <button
+          onClick={() => setFocusMode(!focusMode)}
+          style={{
+            width: '100%', padding: 14,
+            background: focusMode ? t.primary : t.surface,
+            color: focusMode ? '#fff' : t.text_primary,
+            border: focusMode ? 'none' : `1px solid ${t.border}`,
+            borderRadius: 12, fontSize: 14, fontWeight: 700,
+          }}
+        >
+          {focusMode ? '✓ Focus Mode ON' : 'Enable Focus Mode'}
+        </button>
+      </Section>
+
+      {/* Export */}
       <Section title="Export Data">
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
+        <div style={{ fontSize: 13, color: t.text_secondary, marginBottom: 10 }}>
           Export all plans, versions, and logs as JSON for backup or device sync.
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -131,77 +123,76 @@ export default function SettingsScreen() {
         </div>
       </Section>
 
-      {/* Import section */}
+      {/* Import */}
       <Section title="Import Data">
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
-          Paste exported JSON to merge into current data. Duplicates are skipped, conflicts preserved.
+        <div style={{ fontSize: 13, color: t.text_secondary, marginBottom: 10 }}>
+          Paste exported JSON to merge. Duplicates skipped, conflicts preserved.
         </div>
         <textarea
           value={importText}
           onChange={e => setImportText(e.target.value)}
           placeholder='Paste export JSON here...'
           rows={8}
-          style={textareaStyle}
+          style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, resize: 'vertical', marginBottom: 8 }}
         />
-        <button onClick={handleImport} disabled={!importText} style={importText ? btnPrimary : btnDisabled}>
+        <button onClick={handleImport} disabled={!importText}
+          style={importText ? btnPrimary : { ...btnPrimary, opacity: 0.4 }}>
           Import & Merge
         </button>
       </Section>
 
-      {/* Legacy import */}
+      {/* Legacy */}
       <Section title="Legacy Log Migration">
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
-          Import old-format logs. Missing planned fields will be filled with defaults.
+        <div style={{ fontSize: 13, color: t.text_secondary, marginBottom: 10 }}>
+          Import old-format logs. Missing planned fields filled with defaults.
         </div>
         <textarea
           value={legacyText}
           onChange={e => setLegacyText(e.target.value)}
-          placeholder='Paste legacy logs JSON (array or {logs: [...]})'
+          placeholder='Paste legacy logs JSON...'
           rows={6}
-          style={textareaStyle}
+          style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, resize: 'vertical', marginBottom: 8 }}
         />
-        <button onClick={handleLegacyImport} disabled={!legacyText} style={legacyText ? btnPrimary : btnDisabled}>
+        <button onClick={handleLegacyImport} disabled={!legacyText}
+          style={legacyText ? btnPrimary : { ...btnPrimary, opacity: 0.4 }}>
           Import Legacy Logs
         </button>
       </Section>
 
       <ErrorList errors={errors} />
 
-      {/* Import summary */}
       {summary && (
         <div style={{
-          background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10,
-          padding: 12, marginBottom: 16,
+          background: t.card, border: `1px solid ${t.border}`,
+          borderLeft: `4px solid ${t.info}`,
+          borderRadius: 12, padding: 14, marginBottom: 16,
         }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#1e40af', marginBottom: 4 }}>Import Summary</div>
-          <div style={{ fontSize: 13, color: '#1e3a8a' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: t.info, marginBottom: 4 }}>Import Summary</div>
+          <div style={{ fontSize: 13, color: t.text_secondary }}>
             Plan versions added: {summary.addedVersions}<br />
             Logs added: {summary.addedLogs}<br />
             Conflicts: {summary.conflicts.length}
           </div>
           {summary.conflicts.length > 0 && (
-            <div style={{ marginTop: 6, fontSize: 12, color: '#991b1b' }}>
-              {summary.conflicts.map((c, i) => (
-                <div key={i}>{c.message}</div>
-              ))}
+            <div style={{ marginTop: 8, fontSize: 12, color: t.warning }}>
+              {summary.conflicts.map((c, i) => <div key={i}>{c.message}</div>)}
             </div>
           )}
         </div>
       )}
 
-      {/* Seed data */}
+      {/* Seed */}
       <Section title="Sample Data">
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
+        <div style={{ fontSize: 13, color: t.text_secondary, marginBottom: 10 }}>
           Load default 7-day plan and seed example pull-day logs for testing.
         </div>
         <button onClick={handleSeedData} style={btnSecondary}>Load Default Plan + Seed Logs</button>
       </Section>
 
-      {/* Danger zone */}
+      {/* Danger */}
       <Section title="Danger Zone">
         <button onClick={handleClearAll} style={{
-          ...btnPrimary,
-          background: '#ef4444',
+          ...btnPrimary, background: t.danger,
         }}>Clear All Data</button>
       </Section>
     </div>
@@ -211,35 +202,21 @@ export default function SettingsScreen() {
 function Section({ title, children }) {
   return (
     <div style={{
-      background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10,
-      padding: 14, marginBottom: 12,
+      background: t.card, border: `1px solid ${t.border}`,
+      borderRadius: 12, padding: 14, marginBottom: 12,
     }}>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{title}</div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: t.text_primary }}>{title}</div>
       {children}
     </div>
   );
 }
 
 const btnPrimary = {
-  padding: '10px 20px', background: '#3b82f6', color: '#fff',
-  border: 'none', borderRadius: 10, fontSize: 14,
-  fontWeight: 700, cursor: 'pointer',
+  padding: '12px 20px', background: t.primary, color: '#fff',
+  border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
 };
 
 const btnSecondary = {
-  padding: '10px 20px', background: '#f1f5f9', color: '#334155',
-  border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 14,
-  fontWeight: 700, cursor: 'pointer',
-};
-
-const btnDisabled = {
-  ...btnPrimary,
-  background: '#94a3b8',
-  cursor: 'not-allowed',
-};
-
-const textareaStyle = {
-  width: '100%', padding: 10, borderRadius: 8,
-  border: '1px solid #d1d5db', fontSize: 13, fontFamily: 'monospace',
-  resize: 'vertical', boxSizing: 'border-box', marginBottom: 8,
+  padding: '12px 20px', background: t.surface, color: t.text_primary,
+  border: `1px solid ${t.border}`, borderRadius: 10, fontSize: 14, fontWeight: 700,
 };

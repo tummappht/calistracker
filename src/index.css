@@ -1,29 +1,202 @@
+/* ── Midnight Ignite Design System ── */
+
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bg: #0F1115;
+  --surface: #151821;
+  --card: #1B1F2A;
+  --border: #252B36;
+
+  --text-primary: #F1F5F9;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+
+  --primary: #FF4D30;
+  --primary-hover: #FF5C41;
+  --primary-active: #E43F24;
+  --primary-soft: rgba(255, 77, 48, 0.12);
+
+  --success: #22C55E;
+  --success-soft: rgba(34, 197, 94, 0.12);
+  --warning: #F59E0B;
+  --danger: #DC2626;
+  --danger-soft: rgba(220, 38, 38, 0.12);
+
+  --focus-push: #FF4D30;
+  --focus-pull: #22C55E;
+  --focus-legs: #F59E0B;
+  --focus-core: #3B82F6;
+  --focus-handstand: #A855F7;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --font-xs: 11px;
+  --font-sm: 13px;
+  --font-md: 14px;
+  --font-lg: 16px;
+  --font-xl: 18px;
+  --font-xxl: 22px;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: var(--font-md);
   line-height: 1.5;
-  font-weight: 400;
-  color: #1e293b;
-  background-color: #f1f5f9;
+  color: var(--text-primary);
+  background-color: var(--bg);
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: var(--bg);
+}
+
+/* ── Touch targets ── */
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  min-height: 44px;
+}
+
+button {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── Scrollbar (webkit) ── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+/* ── Animations ── */
+@keyframes setLogged {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fadeInCheck {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes prPulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 77, 48, 0.3); }
+  70% { box-shadow: 0 0 0 8px rgba(255, 77, 48, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 77, 48, 0); }
+}
+
+@keyframes completeBorder {
+  0% { border-color: var(--border); }
+  40% { border-color: var(--primary); }
+  100% { border-color: var(--border); }
+}
+
+.anim-set-logged {
+  animation: setLogged 200ms ease-out;
+}
+
+.anim-fade-check {
+  animation: fadeInCheck 200ms ease-out;
+}
+
+.anim-pr-pulse {
+  animation: prPulse 600ms ease-in-out;
+}
+
+.anim-complete {
+  animation: completeBorder 600ms ease-in-out;
+}
+
+/* ── Progress bar ── */
+.progress-bar {
+  height: 4px;
+  background: var(--surface);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 300ms ease;
+}
+
+/* ── Input styling ── */
+input[type="number"],
+input[type="text"],
+textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+input:focus,
+textarea:focus {
+  border-color: var(--primary);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+input:disabled,
+textarea:disabled {
+  opacity: 0.5;
 }
 
 input[type="number"]::-webkit-inner-spin-button {
-  opacity: 1;
+  opacity: 0.5;
 }
 
-input:disabled {
-  opacity: 0.6;
+/* ── Range slider ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--surface);
+  border-radius: 2px;
+  outline: none;
+  min-height: auto;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--card);
+}
+
+/* ── Focus Mode ── */
+body.focus-mode .fm-hide {
+  display: none !important;
+}
+
+body.focus-mode .fm-subtle {
+  opacity: 0.4;
 }

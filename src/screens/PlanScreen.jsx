@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { getPlanTemplate, savePlanTemplate, getPlanVersions, getActivePlanVersion, applyPlanVersion } from '../store/storage';
 import { validatePlanTemplate } from '../utils/validators';
 import { DEFAULT_PLAN } from '../data/defaultPlan';
+import { tokens } from '../theme/tokens';
 import ErrorList from '../components/ErrorList';
 import FocusTags from '../components/FocusTags';
+
+const t = tokens.color;
 
 export default function PlanScreen() {
   const [jsonText, setJsonText] = useState('');
@@ -25,74 +28,52 @@ export default function PlanScreen() {
 
   const loadDefault = () => {
     setJsonText(JSON.stringify(DEFAULT_PLAN, null, 2));
-    setErrors([]);
-    setValidatedPlan(null);
+    setErrors([]); setValidatedPlan(null);
     setStatus('Default plan loaded into editor.');
     setTimeout(() => setStatus(''), 2000);
   };
 
   const validateJson = () => {
-    setErrors([]);
-    setValidatedPlan(null);
+    setErrors([]); setValidatedPlan(null);
 
     let parsed;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch (e) {
-      setErrors([{ path: '', message: `Invalid JSON: ${e.message}` }]);
-      return;
-    }
+    try { parsed = JSON.parse(jsonText); }
+    catch (e) { setErrors([{ path: '', message: `Invalid JSON: ${e.message}` }]); return; }
 
-    // Auto-unwrap export format: extract plan from plan_versions[0]
+    // Auto-unwrap export format
     if (parsed.plan_versions && Array.isArray(parsed.plan_versions) && parsed.plan_versions.length > 0 && !parsed.days) {
       parsed = parsed.plan_versions[0];
     }
 
-    // Normalize each day: merge skill/core arrays into workout, fix "recovery" focus
+    // Normalize days: merge skill/core, fix recovery
     if (Array.isArray(parsed.days)) {
       const warnings = [];
       parsed.days = parsed.days.map((day, i) => {
         const merged = { ...day };
-
-        // Merge skill exercises into workout
         if (Array.isArray(day.skill) && day.skill.length > 0) {
           merged.workout = [...day.skill, ...(day.workout || [])];
           delete merged.skill;
           warnings.push(`days[${i}]: merged ${day.skill.length} skill exercise(s) into workout`);
         }
-
-        // Merge core exercises into workout
         if (Array.isArray(day.core) && day.core.length > 0) {
           merged.workout = [...(merged.workout || []), ...day.core];
           delete merged.core;
           warnings.push(`days[${i}]: merged ${day.core.length} core exercise(s) into workout`);
         }
-
-        // Fix "recovery" focus tag → "core"
         if (Array.isArray(day.focus)) {
           merged.focus = day.focus.map(tag => {
-            if (tag === 'recovery') {
-              warnings.push(`days[${i}].focus: auto-fixed "recovery" → "core"`);
-              return 'core';
-            }
+            if (tag === 'recovery') { warnings.push(`days[${i}].focus: auto-fixed "recovery" → "core"`); return 'core'; }
             return tag;
           });
         }
-
         return merged;
       });
-
-      // Also fix weekly_pattern
       if (parsed.split && Array.isArray(parsed.split.weekly_pattern)) {
         parsed.split.weekly_pattern = parsed.split.weekly_pattern.map((tag, i) => {
-          if (tag === 'recovery') {
-            warnings.push(`split.weekly_pattern[${i}]: auto-fixed "recovery" → "core"`);
-            return 'core';
-          }
+          if (tag === 'recovery') { return 'core'; }
           return tag;
         });
       }
-
       if (warnings.length > 0) {
         setStatus(`Auto-fixed: ${warnings.length} issue(s). Review and apply.`);
         setJsonText(JSON.stringify(parsed, null, 2));
@@ -100,49 +81,41 @@ export default function PlanScreen() {
     }
 
     const errs = validatePlanTemplate(parsed);
-    if (errs.length > 0) {
-      setErrors(errs);
-      return;
-    }
+    if (errs.length > 0) { setErrors(errs); return; }
 
     setValidatedPlan(parsed);
-    if (!status) {
-      setStatus('Plan is valid! You can now apply it.');
-    }
+    if (!status) { setStatus('Plan is valid! You can now apply it.'); }
     setTimeout(() => setStatus(''), 4000);
   };
 
   const applyPlan = () => {
-    if (!validatedPlan) {
-      setErrors([{ path: '', message: 'Validate the plan first before applying.' }]);
-      return;
-    }
-
+    if (!validatedPlan) { setErrors([{ path: '', message: 'Validate the plan first.' }]); return; }
     savePlanTemplate(validatedPlan);
-    const newVersion = applyPlanVersion(validatedPlan);
+    const nv = applyPlanVersion(validatedPlan);
     refresh();
-    setStatus(`Plan applied! Version ${newVersion.version} is now active.`);
+    setStatus(`Plan applied! Version ${nv.version} is now active.`);
     setValidatedPlan(null);
     setTimeout(() => setStatus(''), 3000);
   };
 
   return (
     <div style={{ padding: 16, paddingBottom: 100 }}>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 12 }}>Plan Management</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 16, color: t.text_primary }}>Plan Management</div>
 
-      {/* Active plan info */}
+      {/* Active plan */}
       {activeVersion && (
         <div style={{
-          background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10,
-          padding: 12, marginBottom: 16,
+          background: t.card, border: `1px solid ${t.border}`,
+          borderLeft: `4px solid ${t.primary}`,
+          borderRadius: 12, padding: 14, marginBottom: 16,
         }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#1e40af' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.primary }}>
             Active: {activeVersion.title} (v{activeVersion.version})
           </div>
-          <div style={{ fontSize: 12, color: '#3b82f6' }}>
+          <div style={{ fontSize: 12, color: t.text_muted, marginTop: 2 }}>
             Applied: {new Date(activeVersion.applied_at).toLocaleString()}
           </div>
-          <div style={{ fontSize: 12, color: '#3b82f6' }}>
+          <div style={{ fontSize: 12, color: t.text_muted }}>
             {activeVersion.days.length} days · {activeVersion.split.type}
           </div>
         </div>
@@ -151,18 +124,19 @@ export default function PlanScreen() {
       {/* Status */}
       {status && (
         <div style={{
-          background: '#22c55e', color: '#fff', padding: '8px 16px',
-          borderRadius: 8, marginBottom: 12, fontSize: 14, fontWeight: 600, textAlign: 'center',
+          background: t.primary_soft, color: t.primary, padding: '10px 16px',
+          borderRadius: 10, marginBottom: 12, fontSize: 14, fontWeight: 700, textAlign: 'center',
+          border: `1px solid ${t.primary}30`,
         }}>{status}</div>
       )}
 
-      {/* JSON Editor */}
+      {/* JSON editor */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <label style={{ fontSize: 14, fontWeight: 700 }}>Plan JSON</label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <label style={{ fontSize: 14, fontWeight: 700, color: t.text_primary }}>Plan JSON</label>
           <button onClick={loadDefault} style={{
-            background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8,
-            padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569',
+            background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8,
+            padding: '6px 14px', fontSize: 12, fontWeight: 600, color: t.text_secondary,
           }}>Load Default</button>
         </div>
         <textarea
@@ -170,87 +144,91 @@ export default function PlanScreen() {
           onChange={e => { setJsonText(e.target.value); setErrors([]); setValidatedPlan(null); }}
           placeholder='Paste plan JSON here...'
           rows={12}
-          style={{
-            width: '100%', padding: 10, borderRadius: 8,
-            border: '1px solid #d1d5db', fontSize: 13, fontFamily: 'monospace',
-            resize: 'vertical', boxSizing: 'border-box',
-          }}
+          style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
         />
       </div>
 
       <ErrorList errors={errors} />
 
-      {/* Validated preview */}
       {validatedPlan && (
         <div style={{
-          background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10,
-          padding: 12, marginBottom: 12,
+          background: `${t.success}12`, border: `1px solid ${t.success}30`,
+          borderRadius: 12, padding: 12, marginBottom: 12,
         }}>
-          <div style={{ fontWeight: 700, color: '#166534', fontSize: 14, marginBottom: 4 }}>
+          <div style={{ fontWeight: 700, color: t.success, fontSize: 14 }}>
             Valid: {validatedPlan.title}
           </div>
-          <div style={{ fontSize: 12, color: '#15803d' }}>
-            {validatedPlan.days.length} days · Cycle: {validatedPlan.split.weekly_pattern.join(' → ')}
+          <div style={{ fontSize: 12, color: t.text_secondary, marginTop: 2 }}>
+            {validatedPlan.days.length} days · {validatedPlan.split.weekly_pattern.join(' → ')}
           </div>
         </div>
       )}
 
-      {/* Buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         <button onClick={validateJson} style={{
-          flex: 1, padding: 12, background: '#f1f5f9', color: '#334155',
-          border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 14,
-          fontWeight: 700, cursor: 'pointer',
+          flex: 1, padding: 14, background: t.surface, color: t.text_primary,
+          border: `1px solid ${t.border}`, borderRadius: 12, fontSize: 14, fontWeight: 700,
         }}>Validate</button>
         <button onClick={applyPlan} disabled={!validatedPlan} style={{
-          flex: 1, padding: 12, background: validatedPlan ? '#3b82f6' : '#94a3b8', color: '#fff',
-          border: 'none', borderRadius: 10, fontSize: 14,
-          fontWeight: 700, cursor: validatedPlan ? 'pointer' : 'not-allowed',
+          flex: 1, padding: 14, background: validatedPlan ? t.primary : t.surface,
+          color: validatedPlan ? '#fff' : t.text_muted,
+          border: validatedPlan ? 'none' : `1px solid ${t.border}`,
+          borderRadius: 12, fontSize: 14, fontWeight: 700,
+          opacity: validatedPlan ? 1 : 0.5,
         }}>Apply Plan</button>
       </div>
 
-      {/* Plan version history */}
+      {/* Plan history */}
       {versions.length > 0 && (
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, borderTop: '2px solid #e2e8f0', paddingTop: 16 }}>
-            Plan History
-          </div>
+          <div style={{
+            fontSize: 16, fontWeight: 700, marginBottom: 10,
+            borderTop: `1px solid ${t.border}`, paddingTop: 16, color: t.text_primary,
+          }}>Plan History</div>
           {[...versions].reverse().map((v, i) => (
             <div key={i} style={{
-              background: v.active ? '#eff6ff' : '#f8fafc',
-              border: `1px solid ${v.active ? '#bfdbfe' : '#e2e8f0'}`,
-              borderRadius: 10, padding: 12, marginBottom: 8,
+              background: t.card, border: `1px solid ${v.active ? t.primary + '40' : t.border}`,
+              borderLeft: v.active ? `4px solid ${t.primary}` : `4px solid ${t.border}`,
+              borderRadius: 12, padding: 14, marginBottom: 8,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>
-                    {v.title} <span style={{ color: '#94a3b8', fontWeight: 500 }}>v{v.version}</span>
-                    {v.active && <span style={{ background: '#22c55e', color: '#fff', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700, marginLeft: 6 }}>ACTIVE</span>}
+                  <div style={{ fontWeight: 700, fontSize: 14, color: t.text_primary }}>
+                    {v.title} <span style={{ color: t.text_muted, fontWeight: 500 }}>v{v.version}</span>
+                    {v.active && (
+                      <span style={{
+                        background: t.primary_soft, color: t.primary, padding: '2px 8px',
+                        borderRadius: 6, fontSize: 10, fontWeight: 700, marginLeft: 8,
+                        border: `1px solid ${t.primary}30`,
+                      }}>ACTIVE</span>
+                    )}
                   </div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                  <div style={{ fontSize: 12, color: t.text_muted, marginTop: 2 }}>
                     Applied: {new Date(v.applied_at).toLocaleString()}
                   </div>
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                  <div style={{ fontSize: 12, color: t.text_muted }}>
                     {v.days.length} days · {v.split.weekly_pattern.join(', ')}
                   </div>
                 </div>
                 <button onClick={() => setShowVersionDays(showVersionDays === `${v.plan_id}-${v.version}` ? null : `${v.plan_id}-${v.version}`)} style={{
-                  background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8,
-                  padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#475569',
+                  background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8,
+                  padding: '6px 12px', fontSize: 12, color: t.text_secondary,
                 }}>
                   {showVersionDays === `${v.plan_id}-${v.version}` ? 'Hide' : 'View'}
                 </button>
               </div>
 
               {showVersionDays === `${v.plan_id}-${v.version}` && (
-                <div style={{ marginTop: 10, borderTop: '1px solid #e2e8f0', paddingTop: 8 }}>
+                <div style={{ marginTop: 12, borderTop: `1px solid ${t.border}`, paddingTop: 10 }}>
                   {v.days.map((day, di) => (
-                    <div key={di} style={{ marginBottom: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontWeight: 700, fontSize: 13 }}>{day.day}: {day.title}</span>
+                    <div key={di} style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: t.text_primary }}>
+                          {day.day}: {day.title}
+                        </span>
                         <FocusTags tags={day.focus} />
                       </div>
-                      <div style={{ fontSize: 12, color: '#64748b', paddingLeft: 8 }}>
+                      <div style={{ fontSize: 12, color: t.text_muted, paddingLeft: 10 }}>
                         {day.workout.map((ex, ei) => (
                           <div key={ei}>{ex.name} — {ex.sets}×{ex.reps} {ex.unit}</div>
                         ))}

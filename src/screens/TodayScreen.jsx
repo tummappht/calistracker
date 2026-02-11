@@ -1,9 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getActivePlanVersion, getLogs, getLogForDate, createLogFromPlanDay, saveLog } from '../store/storage';
 import { getPlannedDayForDate, todayStr, formatDate } from '../utils/scheduling';
+import { tokens } from '../theme/tokens';
+import { useTheme } from '../theme/ThemeContext';
 import FocusTags from '../components/FocusTags';
 import ExerciseLogger from '../components/ExerciseLogger';
 import MetaInputs from '../components/MetaInputs';
+
+const t = tokens.color;
 
 export default function TodayScreen() {
   const [date] = useState(todayStr());
@@ -11,221 +15,209 @@ export default function TodayScreen() {
   const [planned, setPlanned] = useState(null);
   const [log, setLog] = useState(null);
   const [status, setStatus] = useState('');
+  const { focusMode } = useTheme();
 
   const refresh = useCallback(() => {
     const pv = getActivePlanVersion();
     setPlanVersion(pv);
-
-    if (!pv) {
-      setPlanned(null);
-      setLog(null);
-      return;
-    }
-
+    if (!pv) { setPlanned(null); setLog(null); return; }
     const logs = getLogs();
-    const existingLog = getLogForDate(date);
-    const planned = getPlannedDayForDate(date, pv, logs);
-    setPlanned(planned);
-
-    if (existingLog) {
-      setLog(existingLog);
-    } else {
-      setLog(null);
-    }
+    const p = getPlannedDayForDate(date, pv, logs);
+    setPlanned(p);
+    setLog(getLogForDate(date) || null);
   }, [date]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  const flash = (msg) => { setStatus(msg); setTimeout(() => setStatus(''), 2000); };
+
   const startLog = () => {
     if (!planVersion || !planned?.dayData) return;
-    const newLog = createLogFromPlanDay(date, planVersion, planned.dayData);
-    setLog(newLog);
-    setStatus('Log created!');
-    setTimeout(() => setStatus(''), 2000);
+    setLog(createLogFromPlanDay(date, planVersion, planned.dayData));
+    flash('Log created');
   };
 
   const handleExerciseChange = (idx, updated) => {
     if (!log) return;
-    const newExercises = [...log.exercises];
-    newExercises[idx] = updated;
-    const newLog = { ...log, exercises: newExercises };
-    setLog(newLog);
+    const ex = [...log.exercises];
+    ex[idx] = updated;
+    setLog({ ...log, exercises: ex });
   };
 
-  const saveDraft = () => {
-    if (!log) return;
-    saveLog(log);
-    setStatus('Draft saved!');
-    setTimeout(() => setStatus(''), 2000);
-  };
+  const saveDraft = () => { if (!log) return; saveLog(log); flash('Draft saved'); };
 
   const markComplete = () => {
     if (!log) return;
     const updated = { ...log, completed: true };
     saveLog(updated);
     setLog(updated);
-    setStatus('Marked complete!');
-    setTimeout(() => setStatus(''), 2000);
+    flash('Workout complete');
   };
 
   const resetSets = () => {
-    if (!log) return;
-    if (!window.confirm('Reset all actual sets for today? This cannot be undone.')) return;
-    const newExercises = log.exercises.map(ex => ({ ...ex, actual_sets: [], completed: false }));
-    const updated = { ...log, exercises: newExercises, completed: false };
+    if (!log || !window.confirm('Reset all actual sets for today?')) return;
+    const ex = log.exercises.map(e => ({ ...e, actual_sets: [], completed: false }));
+    const updated = { ...log, exercises: ex, completed: false };
     saveLog(updated);
     setLog(updated);
-    setStatus('Sets reset!');
-    setTimeout(() => setStatus(''), 2000);
-  };
-
-  const updateNotes = (val) => {
-    setLog({ ...log, notes: val });
-  };
-
-  const updateMeta = (meta) => {
-    setLog({ ...log, meta });
+    flash('Sets reset');
   };
 
   if (!planVersion) {
     return (
-      <div style={{ padding: 16, textAlign: 'center', color: '#64748b' }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>No Active Plan</div>
-        <div style={{ fontSize: 14, marginTop: 4 }}>Go to the Plan tab to import and apply a plan.</div>
+      <div style={{ padding: 24, textAlign: 'center', color: t.text_muted }}>
+        <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.5 }}>📋</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text_primary }}>No Active Plan</div>
+        <div style={{ fontSize: 14, marginTop: 6 }}>Go to the Plan tab to import and apply a plan.</div>
       </div>
     );
   }
 
   if (!planned || !planned.dayData) {
     return (
-      <div style={{ padding: 16, textAlign: 'center', color: '#64748b' }}>
-        <div style={{ fontSize: 16 }}>Could not determine today's workout.</div>
+      <div style={{ padding: 24, textAlign: 'center', color: t.text_muted }}>
+        Could not determine today's workout.
       </div>
     );
   }
 
   const dayData = planned.dayData;
+  const completedCount = log ? log.exercises.filter(e => e.completed).length : 0;
+  const totalCount = log ? log.exercises.length : 0;
 
   return (
     <div style={{ padding: 16, paddingBottom: 100 }}>
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: '#64748b' }}>{formatDate(date)}</div>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>{dayData.title}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-          <span style={{ fontSize: 13, color: '#94a3b8' }}>{planned.dayName}</span>
+        <div style={{ fontSize: 13, color: t.text_muted }}>{formatDate(date)}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: t.text_primary, marginTop: 2 }}>
+          {dayData.title}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span style={{ fontSize: 13, color: t.text_secondary }}>{planned.dayName}</span>
           <FocusTags tags={dayData.focus} />
         </div>
-        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+        <div className="fm-hide" style={{ fontSize: 12, color: t.text_muted, marginTop: 4 }}>
           {planVersion.title} · v{planVersion.version}
           {dayData.duration && ` · ${dayData.duration}`}
         </div>
       </div>
 
-      {/* Status toast */}
+      {/* Session progress */}
+      {log && totalCount > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 12, color: t.text_muted }}>Session Progress</span>
+            <span style={{ fontSize: 12, color: t.text_secondary, fontWeight: 600 }}>
+              {completedCount}/{totalCount}
+            </span>
+          </div>
+          <div className="progress-bar" style={{ height: 6 }}>
+            <div className="progress-bar-fill" style={{ width: `${(completedCount / totalCount) * 100}%`, height: 6 }} />
+          </div>
+        </div>
+      )}
+
+      {/* Status */}
       {status && (
         <div style={{
-          background: '#22c55e', color: '#fff', padding: '8px 16px',
-          borderRadius: 8, marginBottom: 12, fontSize: 14, fontWeight: 600, textAlign: 'center',
+          background: t.primary_soft, color: t.primary, padding: '10px 16px',
+          borderRadius: 10, marginBottom: 12, fontSize: 14, fontWeight: 700, textAlign: 'center',
+          border: `1px solid ${t.primary}30`,
         }}>{status}</div>
       )}
 
-      {/* If no log yet */}
+      {/* Start log button */}
       {!log && (
         <button onClick={startLog} style={{
-          width: '100%', padding: 14, background: '#3b82f6', color: '#fff',
-          border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700,
-          cursor: 'pointer', marginBottom: 16,
+          width: '100%', padding: 16, background: t.primary, color: '#fff',
+          border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 800,
+          marginBottom: 16,
         }}>Start Log</button>
       )}
 
       {/* Warmup */}
-      <div style={{
-        background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10,
-        padding: 12, marginBottom: 12,
-      }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>🔥 Warmup</div>
-        <div style={{ fontSize: 13, color: '#92400e' }}>{dayData.warmup.text}</div>
-      </div>
+      {dayData.warmup?.text && (
+        <div className="fm-hide" style={{
+          background: t.card, border: `1px solid ${t.border}`,
+          borderLeft: `4px solid ${t.warning}`,
+          borderRadius: 12, padding: 14, marginBottom: 12,
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, color: t.warning }}>WARMUP</div>
+          <div style={{ fontSize: 13, color: t.text_secondary }}>{dayData.warmup.text}</div>
+        </div>
+      )}
 
       {/* Exercises */}
       {log ? (
         <>
           {log.exercises.map((ex, i) => (
-            <ExerciseLogger
-              key={i}
-              exercise={ex}
-              index={i}
-              onChange={handleExerciseChange}
-              readOnly={false}
-            />
+            <ExerciseLogger key={i} exercise={ex} index={i} onChange={handleExerciseChange} readOnly={false} />
           ))}
 
-          {/* Meta */}
-          <MetaInputs meta={log.meta} onChange={updateMeta} readOnly={false} />
+          {!focusMode && <MetaInputs meta={log.meta} onChange={(meta) => setLog({ ...log, meta })} readOnly={false} />}
 
           {/* Session notes */}
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 13, fontWeight: 600 }}>Session Notes</label>
+          <div className="fm-hide" style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: t.text_secondary, display: 'block', marginBottom: 4 }}>
+              Session Notes
+            </label>
             <textarea
               value={log.notes}
-              onChange={e => updateNotes(e.target.value)}
+              onChange={e => setLog({ ...log, notes: e.target.value })}
               placeholder="How did the session feel?"
               rows={3}
-              style={{
-                width: '100%', padding: 10, borderRadius: 8,
-                border: '1px solid #d1d5db', fontSize: 14, resize: 'vertical',
-                boxSizing: 'border-box', marginTop: 4,
-              }}
+              style={{ width: '100%', resize: 'vertical' }}
             />
           </div>
 
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={saveDraft} style={{
-              flex: 1, padding: 12, background: '#f1f5f9', color: '#334155',
-              border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 14,
-              fontWeight: 700, cursor: 'pointer',
+              flex: 1, padding: 14, background: t.surface, color: t.text_primary,
+              border: `1px solid ${t.border}`, borderRadius: 12, fontSize: 14, fontWeight: 700,
             }}>Save Draft</button>
             <button onClick={markComplete} style={{
-              flex: 1, padding: 12, background: log.completed ? '#22c55e' : '#3b82f6', color: '#fff',
-              border: 'none', borderRadius: 10, fontSize: 14,
-              fontWeight: 700, cursor: 'pointer',
+              flex: 1, padding: 14,
+              background: log.completed ? t.success : t.primary,
+              color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700,
             }}>{log.completed ? '✓ Completed' : 'Mark Complete'}</button>
           </div>
           <button onClick={resetSets} style={{
-            width: '100%', padding: 10, background: '#fff', color: '#ef4444',
-            border: '1px solid #fca5a5', borderRadius: 10, fontSize: 13,
-            fontWeight: 600, cursor: 'pointer', marginTop: 8,
+            width: '100%', padding: 12, background: 'transparent', color: t.danger,
+            border: `1px solid ${t.danger}30`, borderRadius: 12, fontSize: 13,
+            fontWeight: 600, marginTop: 8,
           }}>Reset Today's Sets</button>
         </>
       ) : (
-        /* Preview exercises without log */
         dayData.workout.map((ex, i) => (
           <div key={i} style={{
-            background: '#f8fafc', border: '1px solid #e2e8f0',
-            borderRadius: 10, padding: 12, marginBottom: 8,
+            background: t.card, border: `1px solid ${t.border}`,
+            borderLeft: `4px solid ${t.primary}`,
+            borderRadius: 12, padding: 14, marginBottom: 8,
           }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>{ex.name}</div>
-            <div style={{ fontSize: 13, color: '#64748b' }}>
-              {ex.sets} sets × {ex.reps} {ex.unit}
-              {ex.restSet !== '—' && ` · Rest: ${ex.restSet}`}
+            <div style={{ fontWeight: 700, fontSize: 15, color: t.text_primary }}>{ex.name}</div>
+            <div style={{ fontSize: 13, color: t.text_secondary, marginTop: 2 }}>
+              {ex.sets} × {ex.reps} {ex.unit}
+              {ex.restSet !== '—' && ` · Rest ${ex.restSet}`}
               {ex.useTimer && ' ⏱'}
             </div>
-            {ex.notes && <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>{ex.notes}</div>}
+            {ex.notes && <div style={{ fontSize: 12, color: t.text_muted, fontStyle: 'italic', marginTop: 2 }}>{ex.notes}</div>}
           </div>
         ))
       )}
 
       {/* Cooldown */}
-      <div style={{
-        background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10,
-        padding: 12, marginTop: 12,
-      }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>❄️ Cooldown</div>
-        <div style={{ fontSize: 13, color: '#166534' }}>{dayData.cooldown.text}</div>
-      </div>
+      {dayData.cooldown?.text && (
+        <div className="fm-hide" style={{
+          background: t.card, border: `1px solid ${t.border}`,
+          borderLeft: `4px solid ${t.info}`,
+          borderRadius: 12, padding: 14, marginTop: 12,
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, color: t.info }}>COOLDOWN</div>
+          <div style={{ fontSize: 13, color: t.text_secondary }}>{dayData.cooldown.text}</div>
+        </div>
+      )}
     </div>
   );
 }

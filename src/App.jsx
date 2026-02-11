@@ -1,8 +1,12 @@
 import { useState, useCallback } from 'react';
+import { ThemeProvider, useTheme } from './theme/ThemeContext';
+import { tokens } from './theme/tokens';
 import TodayScreen from './screens/TodayScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import PlanScreen from './screens/PlanScreen';
 import SettingsScreen from './screens/SettingsScreen';
+
+const t = tokens.color;
 
 const TABS = [
   { id: 'today', label: 'Today', icon: '💪' },
@@ -11,9 +15,10 @@ const TABS = [
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
-function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState('today');
   const [refreshKey, setRefreshKey] = useState(0);
+  const { focusMode } = useTheme();
 
   const switchTab = useCallback((tab) => {
     setActiveTab(tab);
@@ -25,17 +30,14 @@ function App() {
       maxWidth: 480,
       margin: '0 auto',
       minHeight: '100vh',
-      background: '#fff',
+      background: t.background,
       position: 'relative',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     }}>
       {/* Header */}
       <div style={{
-        background: '#1e293b',
-        color: '#fff',
-        padding: '12px 16px',
-        fontSize: 16,
-        fontWeight: 800,
+        background: t.surface,
+        borderBottom: `1px solid ${t.border}`,
+        padding: '14px 16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -43,10 +45,21 @@ function App() {
         top: 0,
         zIndex: 100,
       }}>
-        <span>Calisthenics Tracker</span>
-        <span style={{ fontSize: 12, fontWeight: 400, color: '#94a3b8' }}>
-          {TABS.find(t => t.id === activeTab)?.label}
+        <span style={{ fontSize: 16, fontWeight: 800, color: t.text_primary, letterSpacing: '-0.3px' }}>
+          Calisthenics Tracker
         </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {focusMode && (
+            <span style={{
+              background: t.primary_soft, color: t.primary,
+              padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+              border: `1px solid ${t.primary}30`,
+            }}>FOCUS</span>
+          )}
+          <span style={{ fontSize: 12, color: t.text_muted }}>
+            {TABS.find(t => t.id === activeTab)?.label}
+          </span>
+        </div>
       </div>
 
       {/* Content */}
@@ -65,8 +78,8 @@ function App() {
         transform: 'translateX(-50%)',
         width: '100%',
         maxWidth: 480,
-        background: '#fff',
-        borderTop: '1px solid #e2e8f0',
+        background: t.surface,
+        borderTop: `1px solid ${t.border}`,
         display: 'flex',
         zIndex: 100,
       }}>
@@ -76,19 +89,20 @@ function App() {
             onClick={() => switchTab(tab.id)}
             style={{
               flex: 1,
-              padding: '8px 0 6px',
+              padding: '10px 0 8px',
               background: 'none',
               border: 'none',
-              cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: 2,
-              color: activeTab === tab.id ? '#3b82f6' : '#94a3b8',
-              borderTop: activeTab === tab.id ? '2px solid #3b82f6' : '2px solid transparent',
+              color: activeTab === tab.id ? t.primary : t.text_muted,
+              borderTop: activeTab === tab.id ? `2px solid ${t.primary}` : '2px solid transparent',
+              transition: 'color 150ms ease',
+              minHeight: 44,
             }}
           >
-            <span style={{ fontSize: 20 }}>{tab.icon}</span>
+            <span style={{ fontSize: 18 }}>{tab.icon}</span>
             <span style={{ fontSize: 10, fontWeight: 700 }}>{tab.label}</span>
           </button>
         ))}
@@ -97,4 +111,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
