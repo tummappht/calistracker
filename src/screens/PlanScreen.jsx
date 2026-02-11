@@ -43,6 +43,62 @@ export default function PlanScreen() {
       return;
     }
 
+    // Auto-unwrap export format: extract plan from plan_versions[0]
+    if (parsed.plan_versions && Array.isArray(parsed.plan_versions) && parsed.plan_versions.length > 0 && !parsed.days) {
+      parsed = parsed.plan_versions[0];
+    }
+
+    // Normalize each day: merge skill/core arrays into workout, fix "recovery" focus
+    if (Array.isArray(parsed.days)) {
+      const warnings = [];
+      parsed.days = parsed.days.map((day, i) => {
+        const merged = { ...day };
+
+        // Merge skill exercises into workout
+        if (Array.isArray(day.skill) && day.skill.length > 0) {
+          merged.workout = [...day.skill, ...(day.workout || [])];
+          delete merged.skill;
+          warnings.push(`days[${i}]: merged ${day.skill.length} skill exercise(s) into workout`);
+        }
+
+        // Merge core exercises into workout
+        if (Array.isArray(day.core) && day.core.length > 0) {
+          merged.workout = [...(merged.workout || []), ...day.core];
+          delete merged.core;
+          warnings.push(`days[${i}]: merged ${day.core.length} core exercise(s) into workout`);
+        }
+
+        // Fix "recovery" focus tag → "core"
+        if (Array.isArray(day.focus)) {
+          merged.focus = day.focus.map(tag => {
+            if (tag === 'recovery') {
+              warnings.push(`days[${i}].focus: auto-fixed "recovery" → "core"`);
+              return 'core';
+            }
+            return tag;
+          });
+        }
+
+        return merged;
+      });
+
+      // Also fix weekly_pattern
+      if (parsed.split && Array.isArray(parsed.split.weekly_pattern)) {
+        parsed.split.weekly_pattern = parsed.split.weekly_pattern.map((tag, i) => {
+          if (tag === 'recovery') {
+            warnings.push(`split.weekly_pattern[${i}]: auto-fixed "recovery" → "core"`);
+            return 'core';
+          }
+          return tag;
+        });
+      }
+
+      if (warnings.length > 0) {
+        setStatus(`Auto-fixed: ${warnings.length} issue(s). Review and apply.`);
+        setJsonText(JSON.stringify(parsed, null, 2));
+      }
+    }
+
     const errs = validatePlanTemplate(parsed);
     if (errs.length > 0) {
       setErrors(errs);
@@ -50,8 +106,10 @@ export default function PlanScreen() {
     }
 
     setValidatedPlan(parsed);
-    setStatus('Plan is valid! You can now apply it.');
-    setTimeout(() => setStatus(''), 3000);
+    if (!status) {
+      setStatus('Plan is valid! You can now apply it.');
+    }
+    setTimeout(() => setStatus(''), 4000);
   };
 
   const applyPlan = () => {
